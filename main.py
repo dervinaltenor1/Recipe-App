@@ -40,14 +40,20 @@ class RecipeApp(object):
 
         self.menu_instance.load_recipe_data(recipe_list[0], ingredients)
 
-    def cycle(self) -> None:
-        self.iterator += 1
-        if self.iterator >= self.count:
-            self.iterator = 0
-        
-        ingredients = Api_functions.get_ingredients(self.recipe_list[self.iterator])
+    def cycle(self, direction) -> None:
 
-        self.menu_instance.load_recipe_data(self.recipe_list[self.iterator], ingredients)
+        if self.recipe_list:
+            self.iterator += direction
+            if self.iterator >= self.count:
+                self.iterator = 0
+            elif self.iterator < 0:
+                self.iterator = self.count -1
+            
+            ingredients = Api_functions.get_ingredients(self.recipe_list[self.iterator])
+
+            self.menu_instance.load_recipe_data(self.recipe_list[self.iterator], ingredients)
+        else:
+            print("Cant")
                 
 
 
