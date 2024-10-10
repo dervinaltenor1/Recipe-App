@@ -1,5 +1,6 @@
 import tkinter as tk
 import requests
+import logging
 from py_edamam import Recipe
 from io import BytesIO
 from PIL import Image, ImageTk
@@ -7,147 +8,145 @@ from const import WINDOW_TITLE, RECIPE_IMAGE_HEIGHT, RECIPE_IMAGE_WIDTH, RECIPE_
 
 class Menu:
     def __init__(self, recipe_app_instance):
-        self.recipe_url = ""
-        self.window = tk.Tk()
+        """Initialize the menu UI and bind actions."""
 
+        self.window = tk.Tk()
         self.recipe_app_instance = recipe_app_instance
 
+        # Auto-resize based on content
         self.window.geometry("")
         self.window.configure(bg = RECIPE_WINDOW_BG_COLOR)
+        self.window.resizable(False, False)
         self.window.title(WINDOW_TITLE)
 
+        self._create_widgets()
+        
+
+    def _create_widgets(self) -> None:
+        """Create and layout UI components"""
+
+        # Search Text Box
         self.search_text_box = tk.Entry(master = self.window, width = 100)
         self.search_text_box.grid(column = 0, row = 0, padx = 5, pady = 10)
 
+        # Search Button
         self.search_btn = tk.Button(self.window, text = "Search")
+        self.search_btn.config(command=self.recipe_app_instance.search_recipes)
         self.search_btn.grid(column = 1, row = 0, padx = 5)
 
-        self.recipe_link_btn = tk.Button(self.window, text = "Open Recipe")
-        self.recipe_link_btn.config(command = lambda: self.open_link(self.recipe_url))
-        
-
-        self.frame = tk.Frame(self.window, bg = RECIPE_WINDOW_BG_COLOR)
-        self.frame.grid(column = 0, row = 6, columnspan = 2)
-
+        # Ingredients Text Box
         self.ingredients_box = tk.Text(master = self.window, height = 15, width = 70, bg = RECIPE_INFO_BOX_COLOR, relief = tk.FLAT, font = ("Helvetica", 12))
         self.ingredients_box.grid(column = 0, row = 2, pady = 10, columnspan = 2, padx = (5,0))
         self.ingredients_box.config(state = tk.DISABLED, cursor = "arrow")
-        self.ingredients_box.bind("<B1-Motion>", self.disable_highlight)
-        self.ingredients_box.bind("<Double-1>", self.disable_highlight)
+        self.ingredients_box.bind("<B1-Motion>", self._disable_highlight)
+        self.ingredients_box.bind("<Double-1>", self._disable_highlight)
 
-        self.next_action = tk.Text(self.frame, height = 1, width = 4, background = RECIPE_WINDOW_BG_COLOR, relief = tk.FLAT)
-        self.next_action.insert(tk.END, "NEXT")
-        self.next_action.tag_add("link1", "1.0", "1.4")
-        self.next_action.tag_config("link1", foreground = "blue", underline = True)
-        self.next_action.bind("<Button-1>", lambda event: self.on_click(event, link_name = "link1", action_type = self.next_action))
-        self.next_action.bind("<B1-Motion>", self.disable_highlight)
-        self.next_action.bind("<Double-1>", self.disable_highlight)
-        self.next_action.config(state = tk.DISABLED, cursor = "hand2")
+        # Image and Action Link Frame
+        self.frame = tk.Frame(self.window, bg = RECIPE_WINDOW_BG_COLOR)
+        self.frame.grid(column = 0, row = 6, columnspan = 2)
 
-        self.back_action = tk.Text(self.frame, height = 1, width = 8, background = RECIPE_WINDOW_BG_COLOR, relief = tk.FLAT)
-        self.back_action.insert(tk.END, "PREVIOUS")
-        self.back_action.tag_add("link2", "1.0", "1.8")
-        self.back_action.tag_config("link2", foreground = "blue", underline = True)
-        self.back_action.bind("<Button-1>", lambda event: self.on_click(event, link_name = "link2", action_type = self.back_action))
-        self.back_action.bind("<B1-Motion>", self.disable_highlight)
-        self.back_action.bind("<Double-1>", self.disable_highlight)
-        self.back_action.config(state = tk.DISABLED, cursor = "hand2")
+        # Action Texts
+        self.next_action = self.create_action_text("NEXT")
+        self.back_action = self.create_action_text("PREVIOUS")
 
+        # Open Recipe Link Button
+        self.recipe_link_btn = tk.Button(self.window, text = "Open Recipe")
+        self.recipe_link_btn.config(command = lambda: self._open_link(self.recipe_url))
 
+    def create_action_text(self, text: str):
+        """Create clickable text for cycling through recipes."""
+
+        action_text = tk.Text(self.frame, height = 1, width = 8, background = RECIPE_WINDOW_BG_COLOR, relief = tk.FLAT)
+        action_text.insert(tk.END, text)
+        action_text.tag_add(text, "1.0", f"1.{len(text)}")
+        action_text.tag_config(text, foreground = "blue", underline = True)
+        action_text.bind("<Button-1>", lambda event: self.recipe_app_instance.cycle(text))
+        action_text.bind("<B1-Motion>", self._disable_highlight)
+        action_text.bind("<Double-1>", self._disable_highlight)
+        action_text.config(state = tk.DISABLED, cursor = "hand2")
+        return action_text
 
     def load_recipe_data(self, recipe: Recipe = None, ingredients = None) -> None:
+        """Load recipe data into the UI."""
+
+        # Enables ingredients box to be auto filled
         self.ingredients_box.config(state = tk.NORMAL)
+
+        # Removes previous text in ingredients box
         self.ingredients_box.delete("1.0", tk.END)
 
+        # Displays blank if no recipe was found
         if not recipe:
             self.ingredients_box.insert(tk.END, "No recipe found for search criteria")
-            image = IMAGE_NOT_FOUND_URL
-            self.load_image(image)
+            self.ingredients_box.config(state = tk.DISABLED)
+            self._load_image(IMAGE_NOT_FOUND_URL)
             self.recipe_url = ""
+            logging.warning(f"No recipe found for search criteria: {self.search_text_box.get()}")
             return
         
-        self.ingredients_box.insert(tk.END, "\n" + recipe.label + "\n")
+        self._display_recipe_details(recipe, ingredients)
+        logging.info(f"Recipe data loaded successfully for: {recipe.label}")
+
+    def _display_recipe_details(self, recipe: Recipe, ingredients) -> None:
+        """Helper method to display recipe details and ingredients."""
+
+        # Adds each ingredient to ingredients box on a new line
+        self.ingredients_box.insert(tk.END, f"\n{recipe.label}\n")
         for ingredient in ingredients:
-            self.ingredients_box.insert(tk.END, "\n" + ingredient)
+            self.ingredients_box.insert(tk.END, f"\n{ingredient}")
 
         self.ingredients_box.config(state = tk.DISABLED)
 
-        image = self.get_image(recipe)
-        self.load_image(image)
+        # Load the recipe image
+        self._load_image(recipe.image)
 
-        self.recipe_url = self.get_url(recipe)
+        self.recipe_url = recipe.url
 
-    def load_image(self, image_url: str) -> None:
-        response = requests.get(image_url)
+        # Displays action texts and open recipe button
+        self.next_action.grid(column = 2, row = 0, padx = (50, 0))
+        self.back_action.grid(column = 0, row = 0, padx = (0, 50))
+        self.recipe_link_btn.grid(column = 0, row = 7, pady = 15, columnspan = 2)
 
-        img = Image.open(BytesIO(response.content))
+    def _load_image(self, image_url: str) -> None:
+        """Load an image from a URL and display it."""
+
+        try:
+            logging.info(f"Attempting to load image from URL: {image_url}")
+            response = requests.get(image_url)
+            response.raise_for_status() # Raise an exception for invalid responses
+            img = Image.open(BytesIO(response.content))
+            logging.info("Image loaded successfully.")
+
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(f"HTTP error occurred: {http_err}")
+            img = Image.open(IMAGE_NOT_FOUND_URL)
+
+        except Exception as e:
+            logging.error(f"An error occurred while loading the image: {e}")
+            img = Image.open(IMAGE_NOT_FOUND_URL)
+
+        # Ensures all images are the same size
         img = img.resize((RECIPE_IMAGE_WIDTH, RECIPE_IMAGE_HEIGHT), Image.Resampling.LANCZOS)
-
         image = ImageTk.PhotoImage(img)
 
+        # Creates image box to be displayed
         image_box = tk.Label(self.frame, image = image, relief = tk.RIDGE)
         image_box.photo = image
         image_box.grid(column = 1, row = 0, columnspan = 1, pady = 20)
 
-        self.next_action.grid(column = 2, row = 0, padx = (50, 0))
-        self.back_action.grid(column = 0, row = 0, padx = (0, 50))
-
-        self.recipe_link_btn.grid(column = 0, row = 7, pady = 15, columnspan = 2)
-
         
-    def open_link(self, recipe_url) -> None:
+    def _open_link(self, recipe_url: str) -> None:
+        """Open the recipe link in the web browser."""
+
         if recipe_url:
             import webbrowser
-            webbrowser.open(recipe_url)
-        else:
-            print("none available")
-
-    def on_click(self, event, link_name: str, action_type):
-
-        click_pos = "@%s,%s" % (event.x, event.y)
-
-
-        try:
-            index = action_type.index(click_pos)
-            link_ranges = action_type.tag_ranges(link_name)
-
-            if not link_ranges:
-                return
-            
-            start, end = link_ranges[0], link_ranges[1]
-
-            # Convert Tcl_Obj to string for comparison
-            index_str = str(index)
-            start_str = str(start)
-            end_str = str(end)
-
-            if start_str <= index_str or index_str <= end_str:
-                if link_name == "link1":
-                    direction: int = 1
-                elif link_name == "link2":
-                    direction: int = -1
-
-                self.recipe_app_instance.cycle(direction)
-
-        except ValueError:
-            print("I SUCK")
-
-
-    def get_image(self, recipe: Recipe) -> str:
-        if recipe:
-            return recipe.image
-        else:
-            return IMAGE_NOT_FOUND_URL
-
-    def get_url(self, recipe: Recipe) -> str:
-        if recipe:
-            return recipe.url
-        else:
-            return ""   
+            webbrowser.open(recipe_url) 
         
 
-    def disable_highlight(self, event):
-        return "break"  # Prevents the default behavior of selecting text
+    def _disable_highlight(self, event):
+        """Disable text highlighting."""
+
+        return "break"
 
     def run_app(self) -> None:
         self.window.mainloop()
