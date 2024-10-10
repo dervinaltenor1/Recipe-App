@@ -1,5 +1,4 @@
-from const import APP_ID
-from const import APP_KEY
+from const import APP_ID, APP_KEY
 from api_functions import Api_functions
 from py_edamam import Recipe
 from menu import Menu

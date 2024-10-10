@@ -1,5 +1,4 @@
-from const import APP_ID
-from const import APP_KEY, IMAGE_NOT_FOUND_URL
+from const import APP_ID, APP_KEY
 from py_edamam import PyEdamam, Recipe
 from typing import Iterator
 

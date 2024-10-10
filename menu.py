@@ -3,8 +3,6 @@ import requests
 from py_edamam import Recipe
 from io import BytesIO
 from PIL import Image, ImageTk
-from tkinter import messagebox
-import webbrowser
 from const import WINDOW_TITLE, RECIPE_IMAGE_HEIGHT, RECIPE_IMAGE_WIDTH, RECIPE_WINDOW_BG_COLOR, RECIPE_INFO_BOX_COLOR, IMAGE_NOT_FOUND_URL
 
 class Menu:
